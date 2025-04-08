@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PencilRuler, ChevronRight, X, Users, LineChart,Video, Bot, Mic, ListOrdered, Twitter, Instagram, Linkedin, CheckCircle, PenBox } from 'lucide-react';
+import { PencilRuler, ChevronRight, X, Users, LineChart, Video, Bot, Mic, ListOrdered, Twitter, Instagram, Linkedin, CheckCircle, PenBox } from 'lucide-react';
 
 // --- Google Auth Only (No Firestore) ---
 import { GoogleAuthProvider, signInWithPopup, User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase/firebaseConfig'; // Only import auth, not db
 import toast, { Toaster } from 'react-hot-toast';
+import emailjs from '@emailjs/browser'; // Make sure to import emailjs
 
 // Define possible submission statuses
 type SubmissionStatus = 'idle' | 'submitting' | 'success' | 'already_joined' | 'error';
@@ -16,12 +17,9 @@ function App() {
     const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>('idle');
     const [currentUser, setCurrentUser] = useState<User | null>(null); // Use Firebase User type
     const [formData, setFormData] = useState({
-        firstName: '',
-        lastName: '',
+        fullName: '',
         email: '',
-        experienceLevel: '',
-        interests: [] as string[],
-        expectations: ''
+        mathKnowledgeLevel: ''
     });
 
     // --- Check if user has already registered using localStorage ---
@@ -57,6 +55,35 @@ function App() {
             console.error("Error saving to localStorage", e);
         }
     };
+
+    // --- Send confirmation email using EmailJS ---
+    const sendConfirmationEmail = async (email: string, name: string) => {
+        try {
+            // const userId = 'L3St-0yzL8CU0Qay3'; 
+            const templateId = 'template_wyrglxo'; 
+            const serviceId = 'service_pjbeauq8'; 
+            
+            emailjs.init({publicKey: 'L3St-0yzL8CU0Qay3'});
+            
+            const response = await emailjs.send(
+                serviceId,
+                templateId,
+                {
+                    user_email: email,
+                    user_name: name,
+                    message: 'Thank you for joining the SketchMentor waitlist!'
+                }
+            );
+            
+            console.log('Email sent successfully:', response);
+            return true;
+        } catch (error) {
+            console.error('Error sending confirmation email:', error);
+            return false;
+        }
+    };
+    
+
 
     // --- Effect to check auth state and registration status ---
     useEffect(() => {
@@ -145,7 +172,7 @@ function App() {
         }
     };
 
-    // --- Form Submission Handler (stores in localStorage) ---
+    // --- Form Submission Handler (stores in localStorage and sends email with EmailJS) ---
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (submissionStatus === 'submitting' || submissionStatus === 'success' || submissionStatus === 'already_joined') {
@@ -160,6 +187,11 @@ function App() {
             return;
         }
 
+        if (!formData.fullName || !formData.mathKnowledgeLevel) {
+            toast.error('Please fill out all required fields.');
+            return;
+        }
+
         setSubmissionStatus('submitting');
         
         try {
@@ -171,15 +203,12 @@ function App() {
                 return;
             }
             
-            // Instead of storing in DB, store in localStorage and log the form data
+            // Store form data in localStorage and log it
             console.log("Form data collected:", {
                 userId: currentUser.uid,
-                firstName: formData.firstName,
-                lastName: formData.lastName,
+                fullName: formData.fullName,
                 email: formData.email,
-                experienceLevel: formData.experienceLevel,
-                interests: formData.interests,
-                expectations: formData.expectations,
+                mathKnowledgeLevel: formData.mathKnowledgeLevel,
                 joinedAt: new Date()
             });
             
@@ -188,18 +217,29 @@ function App() {
                 saveUserEmail(currentUser.email);
             }
             
-            // Simulate a short delay
-            setTimeout(() => {
+            // Send confirmation email using EmailJS
+            const emailSent = await sendConfirmationEmail(
+                formData.email, 
+                formData.fullName
+            );
+            
+            if (emailSent) {
+                toast.success('Successfully joined the waitlist! Check your email for confirmation.');
+            } else {
                 toast.success('Successfully joined the waitlist!');
-                setSubmissionStatus('success');
-                setShowModal(false);
-    
-                // Reset form fields and step
-                setFormData({
-                    firstName: '', lastName: '', email: '', experienceLevel: '', interests: [], expectations: ''
-                });
-                setFormStep('auth');
-            }, 1000);
+                console.warn('Failed to send confirmation email, but user was registered.');
+            }
+            
+            setSubmissionStatus('success');
+            setShowModal(false);
+
+            // Reset form fields and step
+            setFormData({
+                fullName: '', 
+                email: '', 
+                mathKnowledgeLevel: ''
+            });
+            setFormStep('auth');
 
         } catch (error) {
             console.error("Form Submission Error:", error);
@@ -262,7 +302,6 @@ function App() {
                         </div>
                         <nav className="hidden md:flex space-x-8">
                             <a href="#features" className="text-gray-300 hover:text-white">Features</a>
-                            <a href="#how-it-works" className="text-gray-300 hover:text-white">How It Works</a>
                             <a href="#join" className="text-gray-300 hover:text-white">Join Waitlist</a>
                         </nav>
                         <button
@@ -290,7 +329,8 @@ function App() {
                             Empower Your Math Journey With <br /><span className="text-purple-500">Real-Time AI Assistance</span><br />
                             </h1>
                             <p className="text-lg sm:text-xl text-gray-400 max-w-3xl mx-auto mb-8">
-                            Get instant feedback, explore step-by-step solutions, and understand complex math topics with personalized AI tutoring.                            </p>
+                            Get instant feedback, explore step-by-step solutions, and understand complex math topics with personalized AI tutoring.
+                            </p>
                         </motion.div>
 
                         <motion.div
@@ -311,7 +351,7 @@ function App() {
 
                         <div className="flex items-center justify-center space-x-2 text-gray-400">
                             <Users className="h-5 w-5" />
-                            <span>200+ designers already on the waitlist</span>
+                            <span>200+ students already on the waitlist</span>
                         </div>
                     </div>
                 </div>
@@ -321,7 +361,7 @@ function App() {
             <section id="features" className="py-20 bg-[#111111]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <h2 className="text-3xl font-bold text-center mb-4">
-                        Why Choose <span className="text-purple-500">Sketch</span> <span className="text-blue-500">Mentor</span>
+                        Why Choose <span className="text-purple-500">Sketch </span><span className="text-blue-500">Mentor</span>
                     </h2>
                     <p className="text-gray-400 text-center max-w-2xl mx-auto mb-12">
                     Our platform offers powerful AI tools to help you truly understand math and become a more confident problem solver.
@@ -337,14 +377,11 @@ function App() {
                 </div>
             </section>
 
-            {/* How it Works Section */}
-            
-
             {/* Join Section */}
             <section id="join" className="py-20 bg-[#111111] text-center">
                 <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <h2 className="text-3xl font-bold mb-4">Ready to Elevate Your Design Career?</h2>
-                    <p className="text-gray-400 mb-8">Join the SketchMentor waitlist today and be the first to access personalized mentorship.</p>
+                    <h2 className="text-3xl font-bold mb-4">Ready to Transform Your Math Experience?</h2>
+                    <p className="text-gray-400 mb-8">Join the SketchMentor waitlist today and be the first to access our AI-powered math learning tools.</p>
                     <button
                         onClick={openModal}
                         className={`${heroJoinButtonClasses} mx-auto`}
@@ -356,7 +393,6 @@ function App() {
                 </div>
             </section>
 
-
             {/* Footer */}
             <footer className="bg-[#0A0A0A] border-t border-gray-800">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -365,7 +401,7 @@ function App() {
                             <PencilRuler className="h-8 w-8 text-purple-500" />
                             <span className="text-xl font-bold">Sketch<span className="text-purple-500">Mentor</span></span>
                         </div>
-                        <p className="text-gray-400 text-sm md:text-right">Learn Visualize Solve</p>
+                        <p className="text-gray-400 text-sm md:text-right">Learn, Visualize, Solve</p>
                     </div>
                     <div className="flex flex-col md:flex-row justify-between items-center border-t border-gray-800 pt-8 gap-4">
                         <div className="text-gray-400 text-sm order-2 md:order-1">
@@ -410,8 +446,8 @@ function App() {
                                     <h2 className="text-2xl font-bold mb-2">You're on the list!</h2>
                                     <p className="text-gray-400">
                                         {submissionStatus === 'already_joined' 
-                                            ? 'You have already joined the SketchMentor waitlist. We\'ll notify you when we launch!'
-                                            : 'Thanks for joining the SketchMentor waitlist. We\'ll notify you when we launch!'}
+                                            ? 'You have already joined the  waitlist. We\'ll notify you when we launch!'
+                                            : 'Thanks for joining the Sketch Mentor waitlist. We\'ve sent a confirmation to your email and will notify you when we launch!'}
                                     </p>
                                 </div>
                             ) : formStep === 'auth' ? (
@@ -420,7 +456,7 @@ function App() {
                                     <PencilRuler className="h-12 w-12 text-purple-500 mx-auto mb-4" />
                                     <h2 className="text-2xl font-bold mb-3">Join the Waitlist</h2>
                                     <p className="text-gray-400 mb-8">
-                                        Sign in with Google to get started. Be the first to know when SketchMentor launches!
+                                        Sign in with Google to get started. Be the first to know when MathAI launches!
                                     </p>
                                     <button
                                         onClick={handleGoogleSignIn}
@@ -434,53 +470,61 @@ function App() {
                                     )}
                                 </div>
                             ) : (
-                                // --- Details Step (Shown after successful sign-in) ---
+                                // --- Details Step (Simplified Form) ---
                                 <form onSubmit={handleSubmit} className="space-y-5">
                                     <h2 className="text-2xl font-bold mb-4 text-center">Complete Your Profile</h2>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div>
-                                            <label htmlFor="firstName" className="block text-sm font-medium text-gray-300 mb-1">First Name</label>
-                                            <input id="firstName" type="text" value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} className="w-full bg-gray-800 rounded-lg px-4 py-2.5 text-white border border-gray-700 focus:border-purple-500 focus:ring-purple-500 focus:outline-none" required placeholder="e.g., Alex" />
-                                        </div>
-                                        <div>
-                                            <label htmlFor="lastName" className="block text-sm font-medium text-gray-300 mb-1">Last Name</label>
-                                            <input id="lastName" type="text" value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} className="w-full bg-gray-800 rounded-lg px-4 py-2.5 text-white border border-gray-700 focus:border-purple-500 focus:ring-purple-500 focus:outline-none" required placeholder="e.g., Chen" />
-                                        </div>
+                                    
+                                    <div>
+                                        <label htmlFor="fullName" className="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
+                                        <input 
+                                            id="fullName" 
+                                            type="text" 
+                                            value={formData.fullName} 
+                                            onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} 
+                                            className="w-full bg-gray-800 rounded-lg px-4 py-2.5 text-white border border-gray-700 focus:border-purple-500 focus:ring-purple-500 focus:outline-none" 
+                                            required 
+                                            placeholder="e.g., John Doe" 
+                                        />
                                     </div>
+                                    
                                     <div>
                                         <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">Email</label>
-                                        <input id="email" type="email" value={formData.email} readOnly={!!currentUser?.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={`w-full bg-gray-800 rounded-lg px-4 py-2.5 text-white border border-gray-700 ${currentUser?.email ? 'opacity-70 cursor-not-allowed' : 'focus:border-purple-500 focus:ring-purple-500 focus:outline-none'}`} required placeholder="your.email@example.com" />
+                                        <input 
+                                            id="email" 
+                                            type="email" 
+                                            value={formData.email} 
+                                            readOnly={!!currentUser?.email} 
+                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
+                                            className={`w-full bg-gray-800 rounded-lg px-4 py-2.5 text-white border border-gray-700 ${currentUser?.email ? 'opacity-70 cursor-not-allowed' : 'focus:border-purple-500 focus:ring-purple-500 focus:outline-none'}`} 
+                                            required 
+                                            placeholder="your.email@example.com" 
+                                        />
                                         {currentUser?.email && <p className="text-xs text-gray-500 mt-1">Email pre-filled from Google.</p>}
                                     </div>
+                                    
                                     <div>
-                                        <label htmlFor="experienceLevel" className="block text-sm font-medium text-gray-300 mb-1">Experience Level</label>
-                                        <select id="experienceLevel" value={formData.experienceLevel} onChange={(e) => setFormData({ ...formData, experienceLevel: e.target.value })} className="w-full bg-gray-800 rounded-lg px-4 py-2.5 text-white border border-gray-700 focus:border-purple-500 focus:ring-purple-500 focus:outline-none appearance-none" required>
-                                            <option value="" disabled>Select your experience level</option>
-                                            <option value="student">Student / Aspiring</option>
-                                            <option value="beginner">Beginner (0-2 years)</option>
-                                            <option value="intermediate">Intermediate (2-5 years)</option>
-                                            <option value="advanced">Advanced (5+ years)</option>
+                                        <label htmlFor="mathKnowledgeLevel" className="block text-sm font-medium text-gray-300 mb-1">Math Knowledge Level</label>
+                                        <select 
+                                            id="mathKnowledgeLevel" 
+                                            value={formData.mathKnowledgeLevel} 
+                                            onChange={(e) => setFormData({ ...formData, mathKnowledgeLevel: e.target.value })} 
+                                            className="w-full bg-gray-800 rounded-lg px-4 py-2.5 text-white border border-gray-700 focus:border-purple-500 focus:ring-purple-500 focus:outline-none appearance-none" 
+                                            required
+                                        >
+                                            <option value="" disabled>Select your math knowledge level</option>
+                                            <option value="elementary">Elementary School Level</option>
+                                            <option value="middle">Middle School Level</option>
+                                            <option value="highschool">High School Level</option>
+                                            <option value="undergraduate">Undergraduate Level</option>
+                                            <option value="graduate">Graduate Level</option>
                                         </select>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">Areas of Interest (Select all that apply)</label>
-                                        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                                            {['UI Design', 'UX Design', 'Product Design', 'Graphic Design', 'Web Design', 'Illustration', 'Prototyping', 'Design Systems'].map((interest) => (
-                                                <label key={interest} className="flex items-center space-x-2 cursor-pointer group">
-                                                    <input type="checkbox" checked={formData.interests.includes(interest)} onChange={(e) => {
-                                                        const newInterests = e.target.checked ? [...formData.interests, interest] : formData.interests.filter(i => i !== interest);
-                                                        setFormData({ ...formData, interests: newInterests });
-                                                    }} className="form-checkbox h-4 w-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500 focus:ring-offset-0" />
-                                                    <span className="text-sm text-gray-300 group-hover:text-white transition-colors">{interest}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label htmlFor="expectations" className="block text-sm font-medium text-gray-300 mb-1">What are you hoping to gain? (Optional)</label>
-                                        <textarea id="expectations" value={formData.expectations} onChange={(e) => setFormData({ ...formData, expectations: e.target.value })} className="w-full bg-gray-800 rounded-lg px-4 py-2.5 text-white h-24 border border-gray-700 focus:border-purple-500 focus:ring-purple-500 focus:outline-none resize-none" placeholder="e.g., Portfolio feedback, career advice, specific skill improvement..." />
-                                    </div>
-                                    <button type="submit" disabled={submissionStatus === 'submitting'} className={`w-full bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2 ${submissionStatus === 'submitting' ? 'opacity-50 cursor-wait' : ''}`}>
+                                    
+                                    <button 
+                                        type="submit" 
+                                        disabled={submissionStatus === 'submitting'} 
+                                        className={`w-full bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2 ${submissionStatus === 'submitting' ? 'opacity-50 cursor-wait' : ''}`}
+                                    >
                                         {submissionStatus === 'submitting' ? (
                                             <>
                                                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -493,6 +537,7 @@ function App() {
                                             </>
                                         )}
                                     </button>
+                                    
                                     {submissionStatus === 'error' && (
                                         <p className="text-red-500 text-sm text-center mt-2">Failed to submit. Please check your details and try again.</p>
                                     )}
@@ -505,8 +550,6 @@ function App() {
         </div>
     );
 }
-
-// --- Feature Card Component ---
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
     return (
         <motion.div
